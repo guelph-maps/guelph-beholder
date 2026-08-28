@@ -8,3 +8,4 @@ data/snapshot/
 data/beholder.db
 *.db-journal
 .venv/
+data/flask.log
