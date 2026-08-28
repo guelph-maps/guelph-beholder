@@ -1,47 +1,69 @@
-# Beholder configuration. Secrets live in .env, not here.
+# Guelph dataset config for the address-beholder engine.
+# Secrets live in .env, not here. Run it with:
+#   python ../address-beholder/run.py --dataset-dir . review
 
-[city]
-name = "Guelph"
-# The City of Guelph address scraper DB (read-only) — the same tracker that
-# feeds guelph-address-import, just read from the other side.
+[dataset]
+slug = "guelph"
+name = "Guelph Addresses"
+feature_type = "addresses"
+
+[source]
+# The City of Guelph address tracker DB (read-only) — the same tracker that
+# feeds guelph-address-import, read from the other side.
 sqlite_path = "C:/Users/kk/Code/ontario-address-changes/data/guelph/guelph.db"
-# Only rows carrying one of these STATUS values are tracked. Guelph publishes
-# 'Active' on every row today; the filter exists so Proposed/Pending rows would
-# be excluded rather than silently imported if that ever changes.
+# Guelph publishes 'Active' on every row today; the filter exists so
+# Proposed/Pending rows would be excluded rather than silently tracked.
 active_status_values = ["Active"]
 
+[source_fields]
+number_from = "number"
+# FULLNAME is already OSM long form ("Cork Street West").
+street_from = "street"
+# NOT "full": Guelph's ADDRESS column appends the unit ("44 Regent Street B"),
+# which is not an address anyone writes.
+full_from = "number+street"
+# 13,162 of 53,846 rows carry a unit. Unlike the importer, the beholder tracks
+# them as their own points — a unit is a real door and is expected to be its own
+# node in OSM.
+unit = "unit"
+# 'Guelph' on 53,771 rows, 'Guelph/Eramosa Twp' on 75 — the one subdivision the
+# city publishes past its own boundary. Declared so those stay distinguishable,
+# and so addr:city is checked against what the source actually says.
+municipality = "props:PLACE"
+ward = "props:WARD"
+postcode = "props:POSTCODE"
+status = "props:STATUS"
+# No address_class, and no ranges: verified against the 19 props keys.
+
+[streets]
+# Empty on purpose. Guelph's source street and OSM agree so far — a street where
+# every point reads MISSING is the tell that an entry belongs here.
+overrides = {}
+
 [osm]
-# Where to get current OSM address elements for conflation:
-#   "overpass" - query Overpass live for the run bbox (~48k elements, ~20s)
-#   "file"     - read a prebuilt JSON of Overpass elements (offline reruns)
 source = "overpass"
-file_path = ""
 overpass_url = "https://overpass-api.de/api/interpreter"
 api_base = "https://api.openstreetmap.org/api/0.6"
-# Source-data extent plus a margin, verbatim from guelph-address-import's
-# [osm] city_bbox. Guelph is a separated city wholly inside Wellington County,
-# so the rectangle inevitably catches township addresses in the corners.
-# [south, west, north, east].
+# Verbatim from guelph-address-import's [osm] city_bbox. Guelph is a separated
+# city wholly inside Wellington County, so the rectangle catches township
+# addresses in the corners. [south, west, north, east].
 city_bbox = [43.46, -80.34, 43.60, -80.14]
 
 [conflation]
-# A city address point is PRESENT if a matching OSM element sits within this
-# radius. Same 100 m as guelph-address-import's [conflation] match_radius_m.
 match_radius_m = 100.0
+# Guelph's double-encoded housenumbers, in readings.py. Delete both the file and
+# this line when the split campaign lands.
+readings = ["readings:READINGS"]
 
 [audit]
-# Correctness checks run on every PRESENT point, on top of present/missing.
-# A matched element further than this from the City point is flagged
-# `far_match`: building centroids sit tens of metres off legitimately, so the
-# threshold is well above the import tool's 15 m match_near_m. The raw distance
-# is stored either way, so any threshold can be re-derived without a refetch.
 far_match_m = 40.0
-# Tags the published tagging plan does not want on Guelph addresses. Each one
-# found becomes a `deprecated_<tag>` issue. addr:province is the 2025 import's
-# leftover, on 44,891 of 48,344 elements as of 2026-08-28 — its own cleanup
-# campaign, deliberately excluded from the map's flagged layer so it does not
-# paint the whole city.
+# The 2025 import's leftover, on 44,891 of 48,344 elements as of 2026-08-28.
+# Its own cleanup campaign, kept out of headline counts and the map layer.
 deprecated_tags = ["addr:province"]
+# The published tagging plan promises addr:city=Guelph, and the 2025 import
+# wrote addr:postcode from this same source, so both absences are real defects
+# here. Toronto expects neither.
+expect_tags = ["addr:city", "addr:postcode"]
 
 [beholder]
 db_path = "data/beholder.db"
@@ -57,13 +79,11 @@ preset_tags = [
 ]
 
 [auth]
-# OSM usernames allowed to post notes. Everyone else (logged in) is read-only.
-# The dev-admin user (DEV_ADMIN_USER in .env) is always allowed when BEHOLDER_DEV is set.
 allowlist = ["skfd"]
 oauth_authorize_url = "https://www.openstreetmap.org/oauth2/authorize"
 oauth_token_url = "https://www.openstreetmap.org/oauth2/token"
 oauth_userinfo_url = "https://api.openstreetmap.org/api/0.6/user/details.json"
 oauth_scope = "read_prefs"
-# Shares the Toronto beholder's registered OSM OAuth2 app, so only one of the
-# two can run at a time.
+# Shares the Toronto dataset's registered OSM OAuth2 app, so only one of the two
+# can be served at a time.
 redirect_uri = "http://127.0.0.1:5000/auth/callback"
