@@ -29,6 +29,20 @@ city_bbox = [43.46, -80.34, 43.60, -80.14]
 # radius. Same 100 m as guelph-address-import's [conflation] match_radius_m.
 match_radius_m = 100.0
 
+[audit]
+# Correctness checks run on every PRESENT point, on top of present/missing.
+# A matched element further than this from the City point is flagged
+# `far_match`: building centroids sit tens of metres off legitimately, so the
+# threshold is well above the import tool's 15 m match_near_m. The raw distance
+# is stored either way, so any threshold can be re-derived without a refetch.
+far_match_m = 40.0
+# Tags the published tagging plan does not want on Guelph addresses. Each one
+# found becomes a `deprecated_<tag>` issue. addr:province is the 2025 import's
+# leftover, on 44,891 of 48,344 elements as of 2026-08-28 — its own cleanup
+# campaign, deliberately excluded from the map's flagged layer so it does not
+# paint the whole city.
+deprecated_tags = ["addr:province"]
+
 [beholder]
 db_path = "data/beholder.db"
 snapshot_dir = "data/snapshot"

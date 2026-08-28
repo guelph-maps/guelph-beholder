@@ -42,6 +42,7 @@ def create_app() -> Flask:
             "transition": request.args.get("transition", ""),
             "kind": request.args.get("kind", ""),
             "match_form": request.args.get("match_form", ""),
+            "issue": request.args.get("issue", ""),
             "municipality": request.args.get("municipality", ""),
             "q": request.args.get("q", ""),
         }

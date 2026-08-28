@@ -25,6 +25,9 @@ class Config:
     city_bbox: tuple[float, float, float, float]
     # conflation
     match_radius_m: float
+    # audit
+    far_match_m: float
+    deprecated_tags: tuple[str, ...]
     # beholder paths
     db_path: Path
     snapshot_dir: Path
@@ -72,6 +75,8 @@ def load(path: str | Path | None = None) -> Config:
         osm_api_base=raw["osm"]["api_base"],
         city_bbox=(bbox[0], bbox[1], bbox[2], bbox[3]),
         match_radius_m=float(raw["conflation"]["match_radius_m"]),
+        far_match_m=float(raw["audit"]["far_match_m"]),
+        deprecated_tags=tuple(raw["audit"]["deprecated_tags"]),
         db_path=_abs(raw["beholder"]["db_path"]),
         snapshot_dir=_abs(raw["beholder"]["snapshot_dir"]),
         cache_dir=_abs(raw["beholder"]["cache_dir"]),

@@ -1,13 +1,16 @@
 """Read queries over the materialized current_state table (+ events/notes)."""
 from __future__ import annotations
 
+import collections
 import sqlite3
+
+from .audit import is_campaign_only
 
 PAGE_SIZE = 100
 
 _ALLOWED_STATUS = {"PRESENT", "MISSING"}
 _ALLOWED_TRANSITION = {"newly_missing", "newly_present", "format_fixed",
-                       "representation_changed"}
+                       "issues_changed", "representation_changed"}
 _ALLOWED_KIND = {"civic", "unit"}
 _ALLOWED_FORM = {"clean", "combined", "semicolon"}
 
@@ -34,6 +37,13 @@ def _where(filters: dict) -> tuple[str, list]:
     if filters.get("match_form") in _ALLOWED_FORM:
         clauses.append("match_form = ?")
         params.append(filters["match_form"])
+    issue = (filters.get("issue") or "").strip()
+    if issue == "any":
+        clauses.append("issues != ''")
+    elif issue and issue.replace("_", "").isalnum():
+        # Anchored on the separators so no code can match another's substring.
+        clauses.append("',' || issues || ',' LIKE ?")
+        params.append(f"%,{issue},%")
     if filters.get("municipality"):
         clauses.append("municipality = ?")
         params.append(filters["municipality"])
@@ -53,7 +63,8 @@ def list_addresses(conn, filters: dict, page: int = 1, page_size: int = PAGE_SIZ
     rows = conn.execute(
         f"""
         SELECT address_point_id, address_full, street_full, unit, kind, municipality,
-               lat, lon, status, representation, match_form, osm_ref, transition
+               lat, lon, status, representation, match_form, issues, distance_m,
+               osm_ref, transition
         FROM current_state{where}
         ORDER BY status DESC, street_full, address_number + 0, address_number, unit
         LIMIT ? OFFSET ?
@@ -70,6 +81,32 @@ def facets(conn) -> dict:
     return {"municipalities": munis}
 
 
+def issue_summary(conn) -> dict:
+    """Per-code counts (commonest first) plus how many points are genuinely
+    flagged. Read off the stored strings in one pass rather than one LIKE query
+    per code.
+
+    `flagged` deliberately excludes points whose only issues are whole-city tag
+    campaigns: addr:province sits on 93% of Guelph's address objects, so a
+    rollup including it would report "45,369 addresses have a problem" and mean
+    nothing. Those are counted separately and kept out of the map layer.
+    """
+    tally: collections.Counter[str] = collections.Counter()
+    flagged = campaign_only = 0
+    for issues, n in conn.execute(
+        "SELECT issues, COUNT(*) FROM current_state WHERE issues != '' GROUP BY issues"
+    ):
+        codes = [c for c in issues.split(",") if c]
+        for code in codes:
+            tally[code] += n
+        if is_campaign_only(codes):
+            campaign_only += n
+        else:
+            flagged += n
+    return {"counts": tally.most_common(), "flagged": flagged,
+            "campaign_only": campaign_only}
+
+
 def coverage(conn) -> dict:
     """Headline counts for the top bar: how much is missing, and how much of
     what is present is only matched through the double-encoding workaround."""
@@ -84,7 +121,12 @@ def coverage(conn) -> dict:
         FROM current_state
         """
     ).fetchone()
-    return {k: (row[k] or 0) for k in row.keys()}
+    out = {k: (row[k] or 0) for k in row.keys()}
+    summary = issue_summary(conn)
+    out["issues"] = summary["counts"]
+    out["flagged"] = summary["flagged"]
+    out["campaign_only"] = summary["campaign_only"]
+    return out
 
 
 def get_point(conn, address_point_id: int):

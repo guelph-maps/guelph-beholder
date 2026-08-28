@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS review_runs (
     note              TEXT
 );
 
--- Append-only: one row only when a point's (status, representation, match_form) changes
+-- Append-only: one row only when a point's (status, representation, match_form,
+-- issues) changes
 -- versus its last known state. Current state = latest row per address_point_id.
 CREATE TABLE IF NOT EXISTS status_events (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,9 +32,12 @@ CREATE TABLE IF NOT EXISTS status_events (
     status           TEXT NOT NULL,          -- PRESENT | MISSING
     representation   TEXT,                    -- node|building|way|relation|interpolation
     match_form       TEXT,                    -- clean|combined|semicolon
+    issues           TEXT,                    -- sorted, comma-joined audit codes
+    distance_m       REAL,
     osm_ref          TEXT,
     prev_status      TEXT,
     prev_match_form  TEXT,
+    prev_issues      TEXT,
     FOREIGN KEY (review_run_id) REFERENCES review_runs(id)
 );
 CREATE INDEX IF NOT EXISTS idx_status_events_point ON status_events(address_point_id, id);

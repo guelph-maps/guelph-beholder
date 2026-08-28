@@ -1,7 +1,8 @@
 "use strict";
 
-// The map renders MISSING points only. It follows the table's civic/unit
-// filter, which starts on civic: Guelph's ~6.8k unmapped units would otherwise
+// The map renders what needs a mapper: MISSING points in red, PRESENT points
+// carrying a correctness issue in amber. It follows the table's civic/unit
+// filter, which starts on civic: Guelph's ~7.5k unmapped units would otherwise
 // bury the civic residue the 2025 import left behind.
 
 let selectedId = null;
@@ -27,7 +28,10 @@ const map = new maplibregl.Map({
 });
 map.addControl(new maplibregl.NavigationControl(), "top-right");
 
-map.on("load", () => {
+// style.load, not load: `load` also waits for the basemap's first tiles, so a
+// slow or unreachable tile server would hide the audit points behind a blank
+// map. The points only need the style.
+map.on("style.load", () => {
   // The missing set is small (hundreds), so render every point individually
   // rather than clustering.
   map.addSource("points", { type: "geojson", data: "/api/points.geojson" });
@@ -37,7 +41,7 @@ map.on("load", () => {
     filter: kindExpr(),
     paint: {
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 3, 16, 7],
-      "circle-color": "#d32f2f",
+      "circle-color": ["match", ["get", "state"], "flagged", "#e8a33d", "#d32f2f"],
       "circle-stroke-width": 0.75,
       "circle-stroke-color": "rgba(0,0,0,0.4)",
     },

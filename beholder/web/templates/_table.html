@@ -14,7 +14,11 @@
       <td class="muted">{{ r['unit'] or '' }}</td>
       <td><span class="badge {{ r['status']|lower }}">{{ r['status']|lower }}</span></td>
       <td class="muted">{{ r['representation'] or '' }}{% if r['match_form'] and r['match_form'] != 'clean' %}
-        <span class="badge form" title="Matched through the {{ r['match_form'] }} housenumber workaround">{{ r['match_form'] }}</span>{% endif %}</td>
+        <span class="badge form" title="Matched through the {{ r['match_form'] }} housenumber workaround">{{ r['match_form'] }}</span>{% endif %}
+        {# City-wide tag campaigns (addr:province, on 93% of objects) would badge
+           almost every row, so they show only when filtered for. #}
+        {% for code in (r['issues'] or '').split(',')
+           if code and (not code.startswith('deprecated_') or filters.issue == code) %}<span class="badge issue">{{ code.replace('_', ' ') }}</span>{% endfor %}</td>
     </tr>
     {% endfor %}
   </tbody>

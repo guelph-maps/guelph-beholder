@@ -14,6 +14,7 @@ class PointState:
     status: str
     representation: str | None
     match_form: str | None
+    issues: str | None
     osm_ref: str | None
 
 
@@ -25,14 +26,14 @@ def latest_statuses(conn: sqlite3.Connection) -> dict[int, PointState]:
     """Current known state per point = the most recent status_event row."""
     rows = conn.execute(
         """
-        SELECT address_point_id, status, representation, match_form, osm_ref
+        SELECT address_point_id, status, representation, match_form, issues, osm_ref
         FROM status_events
         WHERE id IN (SELECT MAX(id) FROM status_events GROUP BY address_point_id)
         """
     ).fetchall()
     return {
         r["address_point_id"]: PointState(r["status"], r["representation"],
-                                          r["match_form"], r["osm_ref"])
+                                          r["match_form"], r["issues"], r["osm_ref"])
         for r in rows
     }
 
@@ -46,7 +47,7 @@ def record_review(
     note: str | None = None,
 ) -> dict:
     """Open a review run, append a status_event for every point whose
-    (status, representation, match_form) changed vs its last known state, and close the run
+    (status, representation, match_form, issues) changed vs its last known state, and close the run
     with summary counts. Returns the summary dict."""
     results = list(results)
     ts = _now()
@@ -67,27 +68,30 @@ def record_review(
         else:
             missing += 1
         before = prev.get(r.address_point_id)
+        issues = ",".join(r.issues)
         changed = (
             before is None
             or before.status != r.status
             or before.representation != r.representation
             or before.match_form != r.match_form
+            or (before.issues or "") != issues
         )
         if changed:
             changes += 1
             new_events.append((
                 r.address_point_id, run_id, ts, r.status,
-                r.representation, r.match_form, r.osm_ref,
+                r.representation, r.match_form, issues, r.distance_m, r.osm_ref,
                 before.status if before else None,
                 before.match_form if before else None,
+                before.issues if before else None,
             ))
 
     conn.executemany(
         """
         INSERT INTO status_events
             (address_point_id, review_run_id, ts, status, representation, match_form,
-             osm_ref, prev_status, prev_match_form)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             issues, distance_m, osm_ref, prev_status, prev_match_form, prev_issues)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         new_events,
     )

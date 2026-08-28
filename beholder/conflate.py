@@ -21,6 +21,9 @@ and flagged `semicolon`.
 
 A clean match always beats a workaround match, even a nearer one, so the
 `combined` count stays honest.
+
+Once a point has an element, `audit.issues_for()` checks what OSM says about it
+field by field — see beholder/audit.py.
 """
 from __future__ import annotations
 
@@ -28,6 +31,7 @@ import math
 from dataclasses import dataclass
 from typing import Iterable
 
+from .audit import AuditPolicy, issues_for
 from .city import AddressPoint, CIVIC, norm_housenumber, norm_unit
 from .osm import OsmElement
 from .streets import normalize_street
@@ -61,6 +65,10 @@ class ConflationResult:
     representation: str | None  # node | building | way | relation | interpolation
     match_form: str | None      # clean | combined | semicolon
     distance_m: float | None
+    issues: tuple[str, ...] = ()
+    # Distinct OSM elements carrying this address, ignoring the combined form
+    # (the 30 unit nodes of "714-30 Willow Road" are 30 doors, not 30 duplicates).
+    match_count: int = 0
 
 
 def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -133,12 +141,15 @@ def conflate_points(
     points: Iterable[AddressPoint],
     osm_elements: Iterable[OsmElement],
     radius_m: float,
+    policy: AuditPolicy | None = None,
 ) -> list[ConflationResult]:
+    policy = policy or AuditPolicy()
     index = build_index(osm_elements)
     results: list[ConflationResult] = []
     for p in points:
         candidates = index.get((p.housenumber_norm, p.street_norm), ())
         best: tuple[int, float, Candidate] | None = None
+        distinct: set[str] = set()
         for cand in candidates:
             # A unit point wants its own door; a civic point takes any element
             # carrying its civic number.
@@ -147,6 +158,8 @@ def conflate_points(
             d = _haversine_m(p.lat, p.lon, cand.element.lat, cand.element.lon)
             if d > radius_m:
                 continue
+            if cand.match_form != COMBINED:
+                distinct.add(cand.element.ref)
             score = (_FORM_RANK[cand.match_form], round(d, 1))
             if best is None or score < (best[0], best[1]):
                 best = (score[0], score[1], cand)
@@ -159,5 +172,7 @@ def conflate_points(
             results.append(ConflationResult(
                 p.address_point_id, PRESENT, cand.element.ref,
                 _representation(cand.element), cand.match_form, d,
+                issues_for(p, cand.element, d, len(distinct), policy),
+                len(distinct),
             ))
     return results

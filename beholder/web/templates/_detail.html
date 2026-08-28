@@ -4,6 +4,9 @@
   <h2>{{ pt['address_full'] }}{% if pt['unit'] %} <span class="unit">unit {{ pt['unit'] }}</span>{% endif %}</h2>
   <span class="badge {{ pt['status']|lower }}">{{ pt['status']|lower }}{% if pt['representation'] %} &middot; {{ pt['representation'] }}{% endif %}</span>
   {% if pt['match_form'] and pt['match_form'] != 'clean' %}<span class="badge form" title="This address is only in OSM through the {{ pt['match_form'] }} housenumber form">{{ pt['match_form'] }} housenumber</span>{% endif %}
+  {% for code in (pt['issues'] or '').split(',') if code %}
+  <span class="badge issue">{{ code.replace('_', ' ') }}</span>
+  {%- endfor %}
   <a class="osm-open"
      href="https://www.openstreetmap.org/?mlat={{ pt['lat'] }}&mlon={{ pt['lon'] }}#map=19/{{ pt['lat'] }}/{{ pt['lon'] }}"
      target="_blank" rel="noopener" title="Open this location on OpenStreetMap (hotkey: O)">Open in OSM &#8599;</a>
@@ -22,6 +25,29 @@
   {% if pt['osm_ref'] %}
     <p><a href="{{ osm_base }}/{{ pt['osm_ref'] }}" target="_blank" rel="noopener">{{ pt['osm_ref'] }}</a></p>
     {% if live %}
+      {% set t = live['tags'] or {} %}
+      {# Field by field, City against OSM. The source is not automatically the
+         authority — a disagreement says one of the two is wrong, not which. #}
+      <table class="compare">
+        <thead><tr><th></th><th>City</th><th>OSM</th></tr></thead>
+        <tbody>
+          {% for label, ours, theirs in [
+              ('Housenumber', pt['address_number'], t.get('addr:housenumber')),
+              ('Street', pt['street_full'], t.get('addr:street')),
+              ('Unit', pt['unit'], t.get('addr:unit')),
+              ('City', pt['municipality'], t.get('addr:city')),
+              ('Postcode', pt['postcode'], t.get('addr:postcode')),
+          ] %}
+          <tr class="{{ 'differs' if (ours or '') != (theirs or '') else '' }}">
+            <th>{{ label }}</th><td>{{ ours or '—' }}</td><td>{{ theirs or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if pt['distance_m'] is not none %}
+      <p class="muted">{{ pt['distance_m'] }} m from the City point{% if pt['match_count'] and pt['match_count'] > 1 %} &middot;
+        {{ pt['match_count'] }} OSM elements carry this address{% endif %}.</p>
+      {% endif %}
       <dl class="kv">
         <dt>Version</dt><dd>v{{ live['version'] }}</dd>
         <dt>Last edit</dt><dd>{{ live['timestamp'] }}</dd>

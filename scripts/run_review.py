@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from beholder import config as _config
 from beholder import db as _db
 from beholder import osm as _osm
+from beholder.audit import AuditPolicy, is_campaign_only
 from beholder.city import iter_active_points
 from beholder.conflate import conflate_points
 from beholder.history import record_review
@@ -57,7 +58,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  {len(elements)} OSM elements")
 
     print("Conflating ...")
-    results = conflate_points(points, elements, cfg.match_radius_m)
+    policy = AuditPolicy(far_match_m=cfg.far_match_m,
+                         deprecated_tags=cfg.deprecated_tags)
+    results = conflate_points(points, elements, cfg.match_radius_m, policy)
 
     _db.init_db(cfg.db_path)
     conn = _db.connect(cfg.db_path)
@@ -79,6 +82,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {workaround} of the present matches only work through the "
               f"housenumber workaround ({forms['combined']} combined, "
               f"{forms['semicolon']} ;-list).")
+    issues = Counter(code for r in results for code in r.issues)
+    if issues:
+        # A city-wide tag campaign (addr:province, on 93% of objects) is not a
+        # per-address defect; counting it in the headline would flag everything.
+        flagged = sum(1 for r in results if r.issues and not is_campaign_only(r.issues))
+        campaign = sum(1 for r in results if r.issues and is_campaign_only(r.issues))
+        print(f"  {flagged} present addresses carry a correctness issue "
+              f"({campaign} more carry only a city-wide tag campaign):")
+        for code, n in issues.most_common():
+            print(f"    {code:26} {n}")
 
     if not args.no_snapshot:
         try:
@@ -86,7 +99,8 @@ def main(argv: list[str] | None = None) -> int:
         except ImportError:
             print("(snapshot module not available yet; skipping)")
         else:
-            paths = build_snapshot(cfg, points)
+            match_counts = {r.address_point_id: r.match_count for r in results}
+            paths = build_snapshot(cfg, points, match_counts)
             print(f"Snapshot written: {', '.join(str(p) for p in paths)}")
 
     return 0
