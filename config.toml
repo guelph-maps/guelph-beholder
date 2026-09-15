@@ -22,9 +22,34 @@ street_from = "street"
 # NOT "full": Guelph's ADDRESS column appends the unit ("44 Regent Street B"),
 # which is not an address anyone writes.
 full_from = "number+street"
-# 13,162 of 53,846 rows carry a unit. Unlike the importer, the beholder tracks
-# them as their own points — a unit is a real door and is expected to be its own
-# node in OSM.
+# 13,162 of 53,846 rows carry a unit, and the beholder tracks every one as its
+# own point. What it expects to find changed on 2026-09-15: a unit is PRESENT
+# either as its own node, or when the civic node lists it in `addr:flats`.
+#
+# The line this replaces said "a unit is a real door and is expected to be its
+# own node in OSM". That is false for about half of them. The importer's
+# classifier (address-importer-friend t2/units.py) splits Guelph's 514
+# multi-unit groups by their numbering: floor- or building-coded units are
+# stacked suites that get one node for the building, sequential ones are front
+# doors that get a node each. This dataset's own history is the evidence the
+# split is real — scored against it, suite units read 96.2% MISSING and door
+# units 17.3%. Mappers mapped the doors and left the suites, which is what the
+# rule predicts, and 5,453 of the 8,449 MISSING were suites that were never
+# going to be nodes.
+#
+# Three Guelph buildings have a listing too long for OSM's 255-character tag
+# limit (85 Mullin Drive's 110 units run to 421), so the importer writes no
+# `addr:flats` for them and their units stay MISSING. Left that way on purpose:
+# the residue is real and countable rather than special-cased away.
+#
+# **The mismatch signal.** A unit the City *adds* to an already-mapped building
+# reads MISSING against a listing that has not caught up — which is exactly the
+# maintenance alarm the importer cannot raise, because its per-door-or-collapse
+# path only creates nodes and cannot modify an existing `addr:flats`. The
+# mirror case is a genuine blind spot: a unit the City *retires* while OSM goes
+# on listing it is invisible here, because this tracks source points and a
+# retired row is no longer one. Catching that needs a check on the OSM side,
+# comparing the listing against the group, and nothing does it yet.
 unit = "unit"
 # 'Guelph' on 53,771 rows, 'Guelph/Eramosa Twp' on 75 — the one subdivision the
 # city publishes past its own boundary. Declared so those stay distinguishable,

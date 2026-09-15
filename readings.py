@@ -43,13 +43,16 @@ def split_combined(housenumber: str, unit: str) -> str | None:
     return None
 
 
-def combined_unit(housenumber: str, unit: str) -> Iterable[tuple[str, str]]:
-    """`714-30` + `addr:unit=30` also answers to civic `714`."""
+def combined_unit(housenumber: str, unit: str, tags=None) -> Iterable[tuple[str, str]]:
+    """`714-30` + `addr:unit=30` also answers to civic `714`.
+
+    `tags` is the element's raw tags, which these two readings do not need —
+    the engine passes them because `addr:flats` does."""
     civic = split_combined(housenumber, unit)
     return ((civic, unit),) if civic else ()
 
 
-def semicolon_list(housenumber: str, unit: str) -> Iterable[tuple[str, str]]:
+def semicolon_list(housenumber: str, unit: str, tags=None) -> Iterable[tuple[str, str]]:
     """`52A;52B;52` answers to each part. Whitespace around the separators is
     real in the data (`38A; 38B`)."""
     if ";" not in housenumber:
