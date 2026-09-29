@@ -4,6 +4,11 @@ The **Guelph dataset** for [`address-beholder`](../address-beholder): audits how
 completely and how correctly the City of Guelph's address points are represented
 in OpenStreetMap, over time.
 
+Part of the [guelph-maps](https://github.com/guelph-maps) organisation, which
+indexes every Guelph project. Its sibling on the same engine is
+[`guelph-pitches-beholder`](https://github.com/guelph-maps/guelph-pitches-beholder)
+— courts and sports fields instead of addresses.
+
 This repo holds no engine code. It is a dataset directory — `config.toml`,
 `readings.py`, `.env`, and a gitignored `data/` — run by the engine beside it:
 
@@ -27,7 +32,10 @@ for regressions, and for the tag cleanups still outstanding.
 unit. `guelph-address-import` collapses them to civic for upload; the beholder
 does not, because a unit is a real door and is expected to be its own node in
 OSM. The table and map default to civic addresses, since ~7.5k unmapped units
-would otherwise bury the civic residue.
+would otherwise bury the civic residue. The same City address points are
+visible inside iD and JOSM as
+[`guelph-address-layer`](https://guelph-maps.github.io/guelph-address-layer/)
+([source](https://github.com/guelph-maps/guelph-address-layer)).
 
 **`readings.py` is a workaround, and it is meant to be deleted.** The 2025
 import wrote units into the housenumber — `addr:housenumber=714-30` *and*
@@ -83,6 +91,10 @@ served at a time. `.env` holds the credentials; with `BEHOLDER_DEV=1`,
 ## Related
 
 - [`address-beholder`](https://github.com/skfd/address-beholder) — the engine
-- [`guelph-address-import`](https://github.com/skfd/guelph-address-import) — the
+- [`guelph-address-import`](https://github.com/guelph-maps/guelph-address-import) — the
   upload side, whose `config.toml` this dataset's field mapping mirrors
+- [`guelph-address-layer`](https://github.com/guelph-maps/guelph-address-layer) —
+  the same points as an editor tile layer
+- [`guelph-pitches-beholder`](https://github.com/guelph-maps/guelph-pitches-beholder)
+  — courts and sports fields on the same engine
 - `ontario-address-changes` — the tracker DB this reads
